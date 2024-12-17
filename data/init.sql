@@ -2,7 +2,12 @@
 * Copyright (c) Intel Corporation 2020
 * SPDX-License-Identifier: Apache-2.0
 **********************************************************************/
+SELECT 'CREATE DATABASE rpsdb' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'rpsdb')\gexec
+
+\connect rpsdb
+
 CREATE EXTENSION IF NOT EXISTS citext;
+
 CREATE TABLE IF NOT EXISTS ciraconfigs(
   cira_config_name citext NOT NULL,
   mps_server_address varchar(256),
@@ -10,12 +15,26 @@ CREATE TABLE IF NOT EXISTS ciraconfigs(
   user_name varchar(40),
   password varchar(63),
   common_name varchar(256),
-  server_address_format integer, 
-  auth_method integer, 
-  mps_root_certificate text, 
+  server_address_format integer,
+  auth_method integer,
+  mps_root_certificate text,
   proxydetails text,
   tenant_id varchar(36) NOT NULL,
   PRIMARY KEY (cira_config_name, tenant_id)
+);
+CREATE TABLE IF NOT EXISTS ieee8021xconfigs(
+    profile_name citext,
+    auth_protocol integer,
+    servername VARCHAR(255),
+    domain VARCHAR(255),
+    username VARCHAR(255),
+    password VARCHAR(255),
+    roaming_identity VARCHAR(255),
+    active_in_s0 BOOLEAN,
+    pxe_timeout integer,
+    wired_interface BOOLEAN NOT NULL,
+    tenant_id varchar(36) NOT NULL,
+    PRIMARY KEY (profile_name, tenant_id)
 );
 CREATE TABLE IF NOT EXISTS wirelessconfigs(
   wireless_profile_name citext NOT NULL,
@@ -28,6 +47,8 @@ CREATE TABLE IF NOT EXISTS wirelessconfigs(
   creation_date timestamp,
   created_by varchar(40),
   tenant_id varchar(36) NOT NULL,
+  ieee8021x_profile_name citext,
+  FOREIGN KEY (ieee8021x_profile_name,tenant_id)  REFERENCES ieee8021xconfigs(profile_name,tenant_id),
   PRIMARY KEY (wireless_profile_name, tenant_id)
 );
 CREATE TABLE IF NOT EXISTS profiles(
@@ -43,8 +64,17 @@ CREATE TABLE IF NOT EXISTS profiles(
   generate_random_mebx_password BOOLEAN NOT NULL,
   tags text[],
   dhcp_enabled BOOLEAN,
+  ip_sync_enabled BOOLEAN NULL,
+  local_wifi_sync_enabled BOOLEAN NULL,
   tenant_id varchar(36) NOT NULL,
-  tls_mode integer NULL,    
+  tls_mode integer NULL,
+  user_consent varchar(7) NULL,
+  ider_enabled BOOLEAN NULL,
+  kvm_enabled BOOLEAN NULL,
+  sol_enabled BOOLEAN NULL,
+  tls_signing_authority varchar(40) NULL,
+  ieee8021x_profile_name citext,
+  FOREIGN KEY (ieee8021x_profile_name,tenant_id)  REFERENCES ieee8021xconfigs(profile_name,tenant_id),
   PRIMARY KEY (profile_name, tenant_id)
 );
 CREATE TABLE IF NOT EXISTS profiles_wirelessconfigs(
@@ -65,9 +95,11 @@ CREATE TABLE IF NOT EXISTS domains(
   provisioning_cert_storage_format varchar(40),
   provisioning_cert_key text,
   creation_date timestamp,
+  expiration_date timestamp,
   created_by varchar(40),
   tenant_id varchar(36) NOT NULL,
-  CONSTRAINT domainsuffix UNIQUE(domain_suffix,tenant_id),
-  PRIMARY KEY (name, tenant_id)
+  CONSTRAINT domainname UNIQUE (name, tenant_id),
+  CONSTRAINT domainsuffix UNIQUE (domain_suffix, tenant_id),
+  PRIMARY KEY (name, domain_suffix, tenant_id)
 );
-CREATE UNIQUE INDEX lower_name_suffix_idx ON domains ((lower(name)), (lower(domain_suffix)));
+
